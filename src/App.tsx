@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import ChatList from './components/ChatList'
 import ChatWindow from './components/ChatWindow'
-import type { Chat, Message } from './types'
+import type { Chat, Message, User } from './types'
+import LoginPage from './pages/LoginPage'
 
 const initialChats: Chat[] = [
   { id: 1, name: 'Genel' },
@@ -17,12 +18,29 @@ const initialMessages: Message[] = [
 ]
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
+
+
   const [selectedChatId, setSelectedChatId] = useState<number>(1)
   const [messages, setMessages] = useState<Message[]>(initialMessages)
-
   const chats = initialChats
+
+
+
+  useEffect(() => {
+    const saved = localStorage.getItem('rc_user')
+    if (saved) {
+      try {
+        const u = JSON.parse(saved) as User
+        if (u && u.email) setCurrentUser(u)
+      } catch {
+        localStorage.removeItem('rc_user')
+      }
+    }
+  }, [])
+
   const selectedChat = useMemo(
-    () => chats.find(c => c.id === selectedChatId)!,
+    () => chats.find(c => c.id === selectedChatId),
     [chats, selectedChatId]
   )
 
@@ -33,17 +51,27 @@ export default function App() {
 
   function handleSend(text: string) {
     const nextId = (messages.at(-1)?.id ?? 0) + 1
-    const now = new Date()
-    const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    setMessages(prev => [...prev, { id: nextId, chatId: selectedChatId, from: 'Me', text, time }])
+  }
 
-    const newMsg: Message = {
-      id: nextId,
-      chatId: selectedChatId,
-      from: 'Me',
-      text,
-      time
-    }
-    setMessages(prev => [...prev, newMsg])
+  function handleLogout() {
+    localStorage.removeItem('rc_user')
+    setCurrentUser(null)
+  }
+
+
+  if (!currentUser) {
+    return <LoginPage onLogin={setCurrentUser} />
+  }
+
+  if (!selectedChat) {
+    return (
+      <div style={{ padding: 20 }}>
+        Seçili sohbet bulunamadı.{' '}
+        <button onClick={() => setSelectedChatId(chats[0].id)}>İlk sohbete dön</button>
+      </div>
+    )
   }
 
   return (
@@ -53,11 +81,21 @@ export default function App() {
         selectedChatId={selectedChatId}
         onSelect={setSelectedChatId}
       />
-      <ChatWindow
-        selectedChat={selectedChat}
-        messages={visibleMessages}
-        onSend={handleSend}
-      />
+
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '10px 12px', background: '#fff', borderBottom: '1px solid #e6e6e6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <strong>Hoş geldin, {currentUser.name}</strong>
+          <button onClick={handleLogout} style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #d9d9d9', background: '#fff', cursor: 'pointer' }}>
+            Çıkış Yap
+          </button>
+        </div>
+
+        <ChatWindow
+          selectedChat={selectedChat}
+          messages={visibleMessages}
+          onSend={handleSend}
+        />
+      </div>
     </div>
   )
 }
